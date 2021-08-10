@@ -4,41 +4,49 @@ from flask_restful import Resource, reqparse
 from flask_jwt_extended import jwt_required, get_jwt
 from models.item import ItemModel
 
-# items = []
+BLANK_ERROR = "'{}' connot be blank"
+NAME_ALREADY_EXIST = "An Item with name '{}' already exists"
+ERROR_INSERTING = "An Error occurred while inserting the item"
+ITEM_NOT_FOUND = "Item Not Found"
+ITEM_DELETED = "Item Deleted"
 
 class Item(Resource):
     parser = reqparse.RequestParser()
     parser.add_argument('price', 
         type = float,
         required = True,
-        help = 'This field cannot be blank!'
+        help = BLANK_ERROR.format("price")
     )
     parser.add_argument('store_id', 
         type = int,
         required = True,
-        help = 'Every Item need a store Id!'
+        help = BLANK_ERROR.format("store_id")
     )
+
+    @classmethod
     @jwt_required()
-    def get(self, name):
+    def get(cls, name: str):
         item = ItemModel.find_by_name(name)
         if item:
             return item.json()
-        return {'message': 'Item not Found!'}, 404
+        return {'message': ITEM_NOT_FOUND}, 404
     
+    @classmethod
     @jwt_required(fresh=True)
-    def post(self, name):
+    def post(cls, name: str):
         if ItemModel.find_by_name(name):
-            return {'message': f'An Item with name {name} already exists'}, 400
+            return {'message': NAME_ALREADY_EXIST.format(name)}, 400
         data = Item.parser.parse_args()
         new_item = ItemModel(name, **data)
         try:
             new_item.save_to_db()
         except:
-            return {'message': 'An Error occured inserting the item'}, 500
+            return {'message': ERROR_INSERTING}, 500
         return new_item.json(), 201
 
+    @classmethod
     @jwt_required()
-    def delete(self, name):
+    def delete(cls, name: str):
         claims = get_jwt()
         if not claims['is_admin']:
             return {'message': 'Admin priilege Required.'}, 401
@@ -46,9 +54,10 @@ class Item(Resource):
         if item:
             item.delete_from_db()
 
-        return {'message': 'Item Deleted'}
+        return {'message': ITEM_DELETED}
 
-    def put(self, name):
+    @classmethod
+    def put(cls, name: str):
         
         data = Item.parser.parse_args()
 
@@ -62,8 +71,10 @@ class Item(Resource):
 
     
 class ItemList(Resource):
+
+    @classmethod
     @jwt_required(optional=True)
-    def get(self):
+    def get(cls):
         user_id = get_jwt_identity()
         if user_id:
             return {'Items': [item.json() for item in ItemModel.query.all()]}, 200
